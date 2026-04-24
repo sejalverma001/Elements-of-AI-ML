@@ -1,0 +1,73 @@
+!pip install streamlit yfinance pyngrok plotly
+
+%%writefile app.py
+import streamlit as st
+import yfinance as yf
+import plotly.graph_objects as go
+
+st.set_page_config(page_title="Stock Dashboard", layout="wide")
+
+st.title("📈 Professional Stock Market Dashboard")
+
+# ---------------- INPUT SECTION ----------------
+symbol = st.text_input("Enter Stock Symbol (Example: AAPL or RELIANCE.NS)", "AAPL")
+
+time_range = st.selectbox(
+    "Select Time Range",
+    ["1 Month", "3 Months", "6 Months", "1 Year", "5 Years"]
+)
+
+# Convert selection to yfinance period format
+period_map = {
+    "1 Month": "1mo",
+    "3 Months": "3mo",
+    "6 Months": "6mo",
+    "1 Year": "1y",
+    "5 Years": "5y"
+}
+
+selected_period = period_map[time_range]
+
+# ---------------- FETCH DATA ----------------
+stock = yf.Ticker(symbol)
+data = stock.history(period=selected_period)
+
+if not data.empty:
+
+    current_price = data["Close"][-1]
+    previous_price = data["Close"][-2]
+    change = current_price - previous_price
+    percent_change = (change / previous_price) * 100
+
+    col1, col2 = st.columns(2)
+    col1.metric("Current Price", round(current_price, 2))
+    col2.metric("Daily Change %", round(percent_change, 2))
+
+    # ---------------- CANDLESTICK ----------------
+    fig = go.Figure(data=[go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close']
+    )])
+
+    fig.update_layout(
+        title=f"{symbol} Candlestick Chart ({time_range})",
+        xaxis_rangeslider_visible=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ---------------- MOVING AVERAGE ----------------
+    data["MA20"] = data["Close"].rolling(20).mean()
+
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(x=data.index, y=data["Close"], name="Close Price"))
+    fig2.add_trace(go.Scatter(x=data.index, y=data["MA20"], name="20-Day MA"))
+
+    fig2.update_layout(title="Moving Average Analysis")
+    st.plotly_chart(fig2, use_container_width=True)
+
+else:
+    st.error("Invalid Stock Symbol or No Data Available")
